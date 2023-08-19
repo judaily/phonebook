@@ -1,0 +1,534 @@
+package controller;
+
+import java.util.ArrayList;
+import java.util.Scanner;
+
+import dto.EmpDTO;
+import services.EmpService;
+import view.EmpView;
+
+public class EmpController {
+	
+	public static void main(String[] args) {
+		Scanner scanner = new Scanner(System.in);
+		EmpView empView = new EmpView();
+		EmpService empService = new EmpService();
+		
+		while(true) {
+			empView.showMenu();
+			String menu = scanner.next();
+			switch(menu) {
+			case "1":
+//				ArrayList<EmpDTO> empList = new EmpService().searchAll();
+//				new EmpView().searchAll(empList);
+				empView.searchAll(empService.searchAll());
+				break;
+			case "2":
+				System.out.println("사원추가");
+				empService.insert(scanner);
+				break;
+			case "3":
+				System.out.println("사원수정");
+				System.out.println(empService.searchAll()+"111");
+				empService.updateEmp(scanner, empService.searchAll());
+				break;
+			case "4":
+				System.out.println("사원삭제");
+				empService.delEmp(scanner, empService.searchAll());
+				break;
+			case "5":
+				break;
+			default:
+				System.out.println("1~5사이 정수 입력");
+			}
+		}
+//		scanner.close();
+	}
+}
+======================================================================
+
+package dao;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+
+import dto.EmpDTO;
+
+public class EmpDAO {
+//	0. Connection 반환 => getConnection => return Connection
+	public Connection getConnection() {
+		Connection conn = null;
+		String url = "jdbc:oracle:thin:@localhost:1521:xe";
+		String userid = "ora_user";
+		String userpw = "hong";
+//		Class.forName()
+		try {
+			conn = DriverManager.getConnection(url, userid, userpw);
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return conn;
+	}
+//	0.1 close() => select => ResultSet, Statement, Connection
+	public void close(ResultSet rs, Statement stmt, Connection conn) {
+		if(rs != null) {
+			try {
+				rs.close();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+		}
+		if(stmt != null) {
+			try {
+				stmt.close();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+		}
+		if(conn != null) {
+			try {
+				conn.close();
+			} catch (SQLException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+//	0.2 close() => I,U,D => Statement, Connection
+	public void close(Statement stmt, Connection conn) {
+		close(null, stmt, conn);
+	}
+	
+//	1. 전체사원 조회 => searchAll() => return 여러명 사원 => ArrayList
+	public ArrayList<EmpDTO> searchAll(){
+		ArrayList<EmpDTO> empList = new ArrayList<EmpDTO>();
+//		1. 변수 선언
+//		Connection, PreparedStatement, ResultSet, sql => select
+		Connection conn 		= null;
+		PreparedStatement pstmt = null;
+		ResultSet rs			= null;
+		
+		StringBuilder sql = new StringBuilder();
+		sql.append("SELECT a.EMPNO				");
+		sql.append("     , a.EMPNM				");
+		sql.append("     , a.SALARY				");
+		sql.append("     , a.DEPTNO				");
+		sql.append("     , b.DEPTNM				");
+		sql.append("  FROM EMP a				");
+		sql.append("     , DEPT b				");
+		sql.append(" WHERE a.DEPTNO = b.DEPTNO	");
+		
+//		2. Connection 반복
+		conn = getConnection();
+//		3. Statement 처리
+		try {
+			pstmt = conn.prepareStatement(sql.toString());
+			rs = pstmt.executeQuery(); // select => table return => rs 대입
+//		4. ArrayList 말다 => 5명 사원정보 들어있다.
+			while(rs.next()) {
+//				4.1 한명의 사원 정보 저장 => EmpDTO 생성
+				EmpDTO empDto = new EmpDTO();
+				empDto.setEmpNo(rs.getString("empno"));
+				empDto.setEmpNm(rs.getString("empnm"));
+				empDto.setSalary(rs.getString("salary"));
+				empDto.setDeptNo(rs.getString("deptno"));
+				empDto.setDeptNm(rs.getString("deptnm"));
+//				4.2 ArrayList 추가
+				empList.add(empDto);
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}finally {
+			close(rs,pstmt, conn);
+		}
+		return empList;
+	}
+	
+//	2. 이름검색 조회 => searchByName(이름)=> return ArrayList, 수정, 삭제 사용된다.
+	public ArrayList<EmpDTO> searchByName(String empNm){
+		ArrayList<EmpDTO> empList = new ArrayList<EmpDTO>();
+//		데이터베이스 연동 => empList 추가
+		Connection conn 		= null;
+		PreparedStatement pstmt = null;
+		ResultSet rs			= null;
+				
+		StringBuilder sql =new StringBuilder();
+		sql.append("SELECT a.EMPNO							");
+		sql.append("     , a.EMPNM							");
+		sql.append(" 	 , a.SALARY							");
+		sql.append("	 , a.DEPTNO							");
+		sql.append("	 , b.DEPTNM							");
+		sql.append("  FROM EMP a							");
+		sql.append("     , DEPT b							");
+		sql.append(" WHERE a.EMPNM LIKE '%' || ? || '%'		");
+		sql.append("   AND a.DEPTNO = b.DEPTNO				");
+		
+		conn = getConnection();
+		try {
+			pstmt =conn.prepareStatement(sql.toString());
+			pstmt.setString(1, empNm);
+			rs = pstmt.executeQuery(); // select 결과 => 테이블 반환
+			while(rs.next()) {
+				EmpDTO empDto = new EmpDTO();
+				empDto.setEmpNo(rs.getString("empno"));
+				empDto.setEmpNm(rs.getString("empnm"));
+				empDto.setSalary(rs.getString("salary"));
+				empDto.setDeptNo(rs.getString("deptno"));
+				empDto.setDeptNm(rs.getString("deptnm"));
+				
+				empList.add(empDto);
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}finally {
+			close(rs, pstmt, conn);
+		}
+//		end
+		return empList;
+	}
+	
+//	3. 사원추가 => insert(한명 사원정보-EmpDTO) => return int
+//	insert, update, delete => executeUpdate() => int : 영향받은 행수
+	public int insert(EmpDTO empDto) {
+		int result=1;
+//		데이터베이스 연동 => insert
+		Connection conn 		= null;
+		PreparedStatement pstmt = null;
+		
+		StringBuilder sql = new StringBuilder();
+		sql.append("INSERT INTO EMP VALUES(?,?,?,?)");
+		
+		conn = getConnection();
+		try {
+			pstmt = conn.prepareStatement(sql.toString());
+			
+			pstmt.setString(1, empDto.getEmpNo());
+			pstmt.setString(2, empDto.getEmpNm());
+			pstmt.setString(3, empDto.getSalary());
+			pstmt.setString(4, empDto.getDeptNo());
+			result = pstmt.executeUpdate();
+			
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return result;
+	}
+	
+//	4.  => update(수정할 사원정보-EmpDTO) => return int
+	public int updateEmp(EmpDTO empDto) {
+		int result=1;	
+		Connection conn 		= null;
+		PreparedStatement pstmt = null;
+		
+		StringBuilder sql = new StringBuilder();
+		
+		sql.append("UPDATE EMP SET ");
+
+		if(empDto.getEmpNo() != null) {
+			sql.append("EMPNO = ?");
+		}
+	
+		if(empDto.getEmpNm() != null) {
+			sql.append("EMPNM = ?");
+		}
+		if(empDto.getSalary() != null) {
+			sql.append("SALARY = ?");
+		}
+		if(empDto.getDeptNo() != null) {
+			sql.append("DEPTNO = ?");
+		}
+		sql.append(" WHERE EMPNO = ? ");
+		
+		conn = getConnection();
+		try {
+			pstmt = conn.prepareStatement(sql.toString());
+			if(empDto.getEmpNo() != null) {
+				pstmt.setString(1, empDto.getEmpNo());
+			}
+			if(empDto.getEmpNm() != null) {
+				pstmt.setString(1, empDto.getEmpNm());
+			}
+			if(empDto.getSalary() != null) {
+				pstmt.setString(1, empDto.getSalary());
+			}
+			if(empDto.getDeptNo() != null) {
+				pstmt.setString(1, empDto.getDeptNo());
+			}
+			pstmt.setString(2, empDto.getEmpNo2());
+			result = pstmt.executeUpdate();	
+		} catch (SQLException e) {
+			e.printStackTrace();		
+		}finally {
+			close(pstmt, conn);
+		}
+		return result;
+	}
+
+//	5. 사원삭제 => delete(삭제할 사원번호, EmpDTO) 둘중 하나 사용 => return int
+	public int delEmp(String empDto) {	
+		int result=1;
+		Connection conn 		= null;
+		PreparedStatement pstmt = null;
+		
+		StringBuilder sql = new StringBuilder();
+		sql.append("DELETE FROM EMP	   		 ");
+		sql.append(" WHERE EMPNO = ?	");
+		conn = getConnection();
+		try {
+			pstmt = conn.prepareStatement(sql.toString());
+			
+			pstmt.setString(1, empDto);
+			
+			result = pstmt.executeUpdate();
+
+		} catch (SQLException e) {
+			e.printStackTrace();	
+		} finally {
+			
+			close(pstmt, conn);
+		}
+		return result;
+	}
+}
+======================================================================
+package view;
+
+import java.util.ArrayList;
+import java.util.Scanner;
+
+import dto.EmpDTO;
+
+public class EmpView {
+//	1. 메뉴 출력
+	public void showMenu() {
+		System.out.println("===================");
+		System.out.println("1 : 사원조회");
+		System.out.println("2 : 사원추가");
+		System.out.println("3 : 사원수정");
+		System.out.println("4 : 사원삭제");
+		System.out.println("5 : 종료");
+		System.out.println("===================");
+	}
+	
+//	2. 전체 사원 출력
+	public void searchAll(ArrayList<EmpDTO> empList) {
+		if(empList != null) {
+			for(int i=0;i< empList.size(); i++) {
+				System.out.println(empList.get(i));
+			}
+		}else {
+			System.out.println("조회된 사원이 없음");
+		}
+	}
+	
+//	3. 이름 검색 출력
+	public void searchByName(Scanner scanner, ArrayList<EmpDTO> empList) {
+		System.out.println("검색할 사원의 이름을 입력하세요 : ");
+		String name = scanner.next();
+		for (int i=0; i<empList.size(); i++) {
+			if (empList.get(i).getEmpNm().equals(name)) {
+				System.out.println(empList.get(i));
+				break;
+			} else if(empList.get(i).getEmpNm() != name){
+				if (i == empList.size()-1) {
+					 System.out.println("해당하는 사원이 존재하지 않습니다.");
+				}
+			}
+		}
+	}
+}
+======================================================================
+package dto;
+
+public class EmpDTO {
+	String empNo;
+	String empNm;
+	String salary;
+	String deptNo;
+	String deptNm;
+	String empNo2;
+	
+	public String getEmpNo() {
+		return empNo;
+	}
+	public void setEmpNo(String empNo) {
+		this.empNo = empNo;
+	}
+	public String getEmpNm() {
+		return empNm;
+	}
+	public void setEmpNm(String empNm) {
+		this.empNm = empNm;
+	}
+	public String getSalary() {
+		return salary;
+	}
+	public void setSalary(String salary) {
+		this.salary = salary;
+	}
+	public String getDeptNo() {
+		return deptNo;
+	}
+	public void setDeptNo(String deptNo) {
+		this.deptNo = deptNo;
+	}
+	public String getDeptNm() {
+		return deptNm;
+	}
+	public void setDeptNm(String deptNm) {
+		this.deptNm = deptNm;
+	}
+	
+
+	public String getEmpNo2() {
+		return empNo2;
+	}
+	public void setEmpNo2(String empNo2) {
+		this.empNo2 = empNo2;
+	}
+	@Override
+	public String toString() {
+		return "[사원번호=" + empNo + ", 사원명=" + empNm
+				+ ", 급여=" + salary + ", 부서번호=" + deptNo
+				+ ", 부서명="+ deptNm + "]";
+	}	
+}
+======================================================================
+package services;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
+
+import dao.EmpDAO;
+import dto.EmpDTO;
+
+public class EmpService {
+	//	1. 전체 사원 조회
+	public ArrayList<EmpDTO> searchAll(){
+//		ArrayList<EmpDTO> empList = null;
+//		EmpDAO empDao= new EmpDAO();
+//		empList = empDao.searchAll();
+//		return empList;
+		return new EmpDAO().searchAll();
+	}
+	
+//	2. 사원추가 => 화면에 출력
+	public void insert(Scanner scanner) {
+//	1. 키보드로 사원정보를 입력해서 처리
+		EmpDTO empDto = new EmpDTO(); // 한명의 사원을 저장하는 object
+		
+		System.out.print("사원번호 : ");
+		String empNo = scanner.next();
+		empDto.setEmpNo(empNo);
+		
+		System.out.print("사원명 : ");
+		String empNm = scanner.next();
+		empDto.setEmpNm(empNm);
+		
+		System.out.print("급여 : ");
+		String salary = scanner.next();
+		empDto.setSalary(salary);
+		
+//		현재 부서 정보 출력(10 : 개발, 20:기획, 30:영업)
+		System.out.print("부서번호 : ");
+		String deptNo = scanner.next();
+		empDto.setDeptNo(deptNo);
+		
+		EmpDAO empDao = new EmpDAO();
+		
+		int result = empDao.insert(empDto);
+		if (result ==1) {
+			System.out.println("사원추가 성공");
+		}else {
+			System.out.println("사원추가 실패");
+		}
+	}
+//	3. 사원 수정
+//	3.1 이름 검색
+//	3.2 검색 결과 대한 수정
+	public void updateEmp(Scanner scanner, ArrayList<EmpDTO> empList) {
+		EmpDTO empDto = new EmpDTO();
+		System.out.println("수정할 사원의 이름을 입력하세요 : ");
+		String empNm = scanner.next();
+		for (int i = 0; i < empList .size(); i++) {
+			if (empList.get(i).getEmpNm().equals(empNm)==true) {
+				System.out.println("수정할 사원의 사원번호를 입력하세요 : ");
+				String num = scanner.next();
+				if (empList.get(0).getEmpNo().equals(num)==true) {
+				System.out.println("수정하실 항목을 선택하세요. (1)사번 (2)이름 (3)급여 (4)부서번호");
+				int n = scanner.nextInt();
+				if (n == 1) {
+					System.out.println("수정할 사원의 사번을 입력하세요.");
+					String EmpNo = scanner.next();
+					empDto.getEmpNo();
+					empDto.setEmpNo(EmpNo);
+					System.out.print(empDto.getEmpNo());
+				} else if(n == 2) {
+					System.out.println("수정할 사원의 이름을 입력하세요.");
+					empNm = scanner.next();
+					empDto.getEmpNm();
+					empDto.setEmpNm(empNm);
+				} else if(n == 3) {
+					System.out.println("수정할 사원의 급여를 입력하세요.");
+					String salary = scanner.next();
+					empDto.getSalary();
+					empDto.setSalary(salary);
+				} else if(n == 4) {
+					System.out.println("수정할 사원의 부서번호를 입력하세요.");
+					String deptNo = scanner.next();
+					empDto.getDeptNo();
+					empDto.setDeptNo(deptNo);
+				}
+				
+				empDto.setEmpNo2(num);
+				
+				EmpDAO dao = new EmpDAO();
+				
+				int result = dao.updateEmp(empDto);
+				
+				if (result ==1) {
+					System.out.println("사원수정에 성공하였습니다.");
+				}else {
+					System.out.println("사원수정에 실패하였습니다.");
+				}
+				}
+			}
+		}
+	}
+	
+//	4. 사원 삭제
+//	4.1 이름 검색
+//	4.2 검색 결과 대한 삭제
+	public void delEmp(Scanner scanner, ArrayList<EmpDTO> empList) {
+		EmpDAO dao = new EmpDAO();
+		System.out.println("삭제할 사원의 이름을 입력하세요 : ");
+		String name = scanner.next();
+		for (int i = 0; i < empList.size(); i++) {
+			
+		if (empList.get(i).getEmpNm().equals(name)==true) {
+				
+				System.out.println(empList.get(i));
+				System.out.println("삭제할 사원의 사원번호를 입력하세요 : ");
+				String num = scanner.next();
+				if (empList.get(0).getEmpNo().equals(num)==true) {
+					
+					dao.delEmp(num);
+					
+					System.out.println("사원이 삭제되었습니다.");
+				break;
+				} else {
+					System.out.println("해당하는 사원이 없습니다.");
+				}
+			} else if (empList.get(i).getEmpNo().equals(name)==false) {
+				if (i == empList.size() - 1) {
+				System.out.println("해당하는 사원이 없습니다.");
+				}
+			}
+		}
+	}
+}
